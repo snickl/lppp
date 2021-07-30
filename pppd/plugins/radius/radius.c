@@ -24,6 +24,10 @@
 *
 ***********************************************************************/
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include "pppd.h"
 #include "chap-new.h"
 #include "radiusclient.h"
@@ -92,7 +96,6 @@ static void radius_acct_interim(void *);
 #endif
 
 struct radius_state {
-    int accounting_started;
     int initialized;
     int client_port;
     int choose_ip;
@@ -673,12 +676,11 @@ radius_acct_start(void)
 	/* RADIUS server could be down so make this a warning */
 	syslog(LOG_WARNING,
 		"Accounting START failed for %s", rstate.user);
-    } else {
-	rstate.accounting_started = 1;
-	/* Kick off periodic accounting reports */
-	if (rstate.acct_interim_interval) {
-	    TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
-	}
+    }
+
+    /* Kick off periodic accounting reports */
+    if (rstate.acct_interim_interval) {
+	TIMEOUT(radius_acct_interim, NULL, rstate.acct_interim_interval);
     }
 }
 
@@ -704,14 +706,9 @@ radius_acct_stop(void)
 	return;
     }
 
-    if (!rstate.accounting_started) {
-	return;
-    }
-
     if (rstate.acct_interim_interval)
 	UNTIMEOUT(radius_acct_interim, NULL);
 
-    rstate.accounting_started = 0;
     rc_avpair_add(&send, PW_ACCT_SESSION_ID, rstate.session_id,
 		   0, VENDOR_NONE);
 
@@ -853,10 +850,6 @@ radius_acct_interim(void *ignored)
     int result;
 
     if (!rstate.initialized) {
-	return;
-    }
-
-    if (!rstate.accounting_started) {
 	return;
     }
 

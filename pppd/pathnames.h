@@ -33,9 +33,9 @@
 #define _PATH_AUTHUP	 _ROOT_PATH "/etc/ppp/auth-up"
 #define _PATH_AUTHDOWN	 _ROOT_PATH "/etc/ppp/auth-down"
 #define _PATH_TTYOPT	 _ROOT_PATH "/etc/ppp/options."
-#define _PATH_CONNERRS	 _ROOT_PATH "/var/log/ppp/connect-errors"
+#define _PATH_CONNERRS	 _ROOT_PATH "/etc/ppp/connect-errors"
 #define _PATH_PEERFILES	 _ROOT_PATH "/etc/ppp/peers/"
-#define _PATH_RESOLV	 _ROOT_PATH "/etc/resolv.conf"
+#define _PATH_RESOLV	 _ROOT_PATH "/etc/ppp/resolv.conf"
 
 #define _PATH_USEROPT	 ".ppprc"
 #define	_PATH_PSEUDONYM	 ".ppp_pseudonym"
@@ -43,9 +43,12 @@
 #ifdef INET6
 #define _PATH_IPV6UP     _ROOT_PATH "/etc/ppp/ipv6-up"
 #define _PATH_IPV6DOWN   _ROOT_PATH "/etc/ppp/ipv6-down"
-#define _PATH_IPV6PREUP	 _ROOT_PATH "/etc/ppp/ipv6-pre-up"
 #endif
 
+#ifdef IPX_CHANGE
+#define _PATH_IPXUP	 _ROOT_PATH "/etc/ppp/ipx-up"
+#define _PATH_IPXDOWN	 _ROOT_PATH "/etc/ppp/ipx-down"
+#endif /* IPX_CHANGE */
 
 #define _PATH_PPPDB	_ROOT_PATH _PATH_VARRUN "pppd2.tdb"
 

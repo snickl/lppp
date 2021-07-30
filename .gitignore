@@ -5,6 +5,19 @@
 *.a
 *.pc
 *.cat8
+*.lo
+*.la
+*.swp
+.deps
+.libs
+
 *.cmake
 include/config.h
 build
+
+# Test related stuff
+utest_*
+test-suite.log
+
+# Distfiles
+/ppp-*.tar.gz

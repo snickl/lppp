@@ -1,10 +1,6 @@
 #ifndef __SPINLOCK_H__
 #define __SPINLOCK_H__
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #include "tdb.h"
 
 #ifdef USE_SPINLOCKS

@@ -39,6 +39,7 @@
 #ifndef USE_EAPTLS
 
 #ifndef __MD5_INCLUDE__
+#define __MD5_INCLUDE__
 
 /* typedef a 32-bit type */
 #ifdef _LP64
@@ -62,7 +63,6 @@ void MD5_Init (MD5_CTX *mdContext);
 void MD5_Update (MD5_CTX *mdContext, unsigned char *inBuf, unsigned int inLen);
 void MD5_Final (unsigned char hash[], MD5_CTX *mdContext);
 
-#define __MD5_INCLUDE__
 #endif /* __MD5_INCLUDE__ */
 
 #endif /* USE_EAPTLS */

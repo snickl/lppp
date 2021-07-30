@@ -28,6 +28,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -129,6 +133,7 @@ vslprintf(char *buf, int buflen, char *fmt, va_list args)
     int c, i, n;
     int width, prec, fillch;
     int base, len, neg, quoted;
+    long lval = 0;
     unsigned long val = 0;
     char *str, *f, *buf0;
     unsigned char *p;
@@ -194,11 +199,12 @@ vslprintf(char *buf, int buflen, char *fmt, va_list args)
 	    c = *fmt++;
 	    switch (c) {
 	    case 'd':
-		val = va_arg(args, long);
-		if (val < 0) {
+		lval = va_arg(args, long);
+		if (lval < 0) {
 		    neg = 1;
-		    val = -val;
-		}
+		    val = -lval;
+	        } else
+		    val = lval;
 		base = 10;
 		break;
 	    case 'u':
@@ -315,6 +321,7 @@ vslprintf(char *buf, int buflen, char *fmt, va_list args)
 		    OUTCHAR(c);
 	    }
 	    continue;
+#ifndef UNIT_TEST
 	case 'P':		/* print PPP packet */
 	    bufinfo.ptr = buf;
 	    bufinfo.len = buflen + 1;
@@ -324,6 +331,7 @@ vslprintf(char *buf, int buflen, char *fmt, va_list args)
 	    buf = bufinfo.ptr;
 	    buflen = bufinfo.len - 1;
 	    continue;
+#endif
 	case 'B':
 	    p = va_arg(args, unsigned char *);
 	    for (n = prec; n > 0; --n) {
@@ -418,6 +426,7 @@ log_packet(u_char *p, int len, char *prefix, int level)
 }
 #endif /* unused */
 
+#ifndef UNIT_TEST
 /*
  * format_packet - make a readable representation of a packet,
  * calling `printer(arg, format, ...)' to output it.
@@ -463,6 +472,7 @@ format_packet(u_char *p, int len, printer_func printer, void *arg)
     else
 	printer(arg, "%.*B", len, p);
 }
+#endif  /* UNIT_TEST */
 
 /*
  * init_pr_log, end_pr_log - initialize and finish use of pr_log.
@@ -589,6 +599,7 @@ logit(int level, char *fmt, va_list args)
     log_write(level, buf);
 }
 
+#ifndef UNIT_TEST
 static void
 log_write(int level, char *buf)
 {
@@ -603,6 +614,13 @@ log_write(int level, char *buf)
 	    log_to_fd = -1;
     }
 }
+#else
+static void
+log_write(int level, char *buf)
+{
+    printf("<%d>: %s\n", level, buf);
+}
+#endif
 
 /*
  * fatal - log an error message and die horribly.
@@ -617,7 +635,11 @@ fatal(char *fmt, ...)
     logit(LOG_ERR, fmt, pvar);
     va_end(pvar);
 
+#ifndef UNIT_TEST
     die(1);			/* as promised */
+#else
+    exit(-1);
+#endif
 }
 
 /*
@@ -721,6 +743,8 @@ dump_packet(const char *tag, unsigned char *p, int len)
     dbglog("%s %P", tag, p, len);
 }
 
+
+#ifndef UNIT_TEST
 /*
  * complete_read - read a full `count' bytes from fd,
  * unless end-of-file or an error other than EINTR is encountered.
@@ -746,6 +770,7 @@ complete_read(int fd, void *buf, size_t count)
 	}
 	return done;
 }
+#endif
 
 /* Procedures for locking the serial device using a lock file. */
 #ifndef LOCK_DIR

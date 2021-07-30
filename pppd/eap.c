@@ -70,6 +70,9 @@
 #endif /* USE_EAPTLS */
 
 #ifdef USE_SRP
+#ifdef HAVE_TIME_H
+#include <time.h>
+#endif
 #include <t_pwd.h>
 #include <t_server.h>
 #include <t_client.h>
@@ -546,7 +549,7 @@ eap_figure_next_state(eap_state *esp, int status)
 			tpw.pebuf.name = esp->es_server.ea_peer;
 			tpw.pebuf.password.len = t_fromb64((char *)tpw.pwbuf,
 			    cp);
-			tpw.pebuf.password.data = tpw.pwbuf;
+			tpw.pebuf.password.data = (char*) tpw.pwbuf;
 			tpw.pebuf.salt.len = t_fromb64((char *)tpw.saltbuf,
 			    cp2);
 			tpw.pebuf.salt.data = tpw.saltbuf;
@@ -2008,8 +2011,6 @@ eap_response(eap_state *esp, u_char *inp, int id, int len)
 	struct t_num A;
 	SHA1_CTX ctxt;
 	u_char dig[SHA_DIGESTSIZE];
-	SHA1_CTX ctxt;
-	u_char dig[SHA_DIGESTSIZE];
 #endif /* USE_SRP */
 
 #ifdef USE_EAPTLS
@@ -2591,6 +2592,7 @@ eap_printpkt(u_char *inp, int inlen,
 			break;
 #endif /* USE_EAPTLS */
 
+#ifdef USE_SRP
 		case EAPT_SRP:
 			if (len < 3)
 				goto truncated;
@@ -2678,6 +2680,7 @@ eap_printpkt(u_char *inp, int inlen,
 				break;
 			}
 			break;
+#endif  /* USE_SRP */
 		}
 		break;
 
@@ -2758,6 +2761,7 @@ eap_printpkt(u_char *inp, int inlen,
 			}
 			break;
 
+#ifdef USE_SRP
 		case EAPT_SRP:
 			if (len < 1)
 				goto truncated;
@@ -2802,6 +2806,7 @@ eap_printpkt(u_char *inp, int inlen,
 				break;
 			}
 			break;
+#endif  /* USE_SRP */
 		}
 		break;
 

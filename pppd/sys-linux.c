@@ -69,6 +69,10 @@
  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -85,7 +89,9 @@
 #include <string.h>
 #include <time.h>
 #include <memory.h>
+#ifdef HAVE_UTMP_H
 #include <utmp.h>
+#endif
 #include <mntent.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -135,6 +141,20 @@
 #include <pcap-bpf.h>
 #include <linux/filter.h>
 #endif /* PPP_FILTER */
+
+#ifndef BOTHER
+#define BOTHER 0010000
+#endif
+struct termios2 {
+	unsigned int c_iflag;
+	unsigned int c_oflag;
+	unsigned int c_cflag;
+	unsigned int c_lflag;
+	unsigned char c_line;
+	unsigned char c_cc[19];
+	unsigned int c_ispeed;
+	unsigned int c_ospeed;
+};
 
 #ifdef INET6
 #ifndef _LINUX_IN6_H
@@ -877,6 +897,12 @@ struct speed {
 #ifdef B460800
     { 460800, B460800 },
 #endif
+#ifdef B500000
+    { 500000, B500000 },
+#endif
+#ifdef B576000
+    { 576000, B576000 },
+#endif
 #ifdef B921600
     { 921600, B921600 },
 #endif
@@ -921,7 +947,6 @@ static int translate_speed (int bps)
 	    if (bps == speedp->speed_int)
 		return speedp->speed_val;
 	}
-	warn("speed %d not supported", bps);
     }
     return 0;
 }
@@ -1000,27 +1025,57 @@ void set_up_tty(int tty_fd, int local)
     if (stop_bits >= 2)
 	tios.c_cflag |= CSTOPB;
 
-    speed = translate_speed(inspeed);
-    if (speed) {
-	cfsetospeed (&tios, speed);
-	cfsetispeed (&tios, speed);
+    if (inspeed) {
+	speed = translate_speed(inspeed);
+	if (speed) {
+	    cfsetospeed (&tios, speed);
+	    cfsetispeed (&tios, speed);
+	    speed = cfgetospeed(&tios);
+	}
+	baud_rate = baud_rate_of(speed);
     }
-/*
- * We can't proceed if the serial port speed is B0,
- * since that implies that the serial port is disabled.
- */
     else {
 	speed = cfgetospeed(&tios);
-	if (speed == B0)
-	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
+	baud_rate = baud_rate_of(speed);
     }
 
     while (tcsetattr(tty_fd, TCSAFLUSH, &tios) < 0 && !ok_error(errno))
 	if (errno != EINTR)
 	    fatal("tcsetattr: %m (line %d)", __LINE__);
-
-    baud_rate    = baud_rate_of(speed);
     restore_term = 1;
+
+/* Most Linux architectures and drivers support arbitrary baud rate values via BOTHER */
+#ifdef TCGETS2
+    if (!baud_rate) {
+	struct termios2 tios2;
+	if (ioctl(tty_fd, TCGETS2, &tios2) == 0) {
+	    if (inspeed) {
+		tios2.c_cflag &= ~CBAUD;
+		tios2.c_cflag |= BOTHER;
+		tios2.c_ispeed = inspeed;
+		tios2.c_ospeed = inspeed;
+#ifdef TCSETS2
+		if (ioctl(tty_fd, TCSETS2, &tios2) == 0)
+		    baud_rate = inspeed;
+#endif
+	    } else {
+		if ((tios2.c_cflag & CBAUD) == BOTHER && tios2.c_ospeed)
+		    baud_rate = tios2.c_ospeed;
+	    }
+	}
+    }
+#endif
+
+/*
+ * We can't proceed if the serial port baud rate is unknown,
+ * since that implies that the serial port is disabled.
+ */
+    if (!baud_rate) {
+	if (inspeed)
+	    fatal("speed %d not supported", inspeed);
+	else
+	    fatal("Baud rate for %s is 0; need explicit baud rate", devnam);
+    }
 }
 
 /********************************************************************
@@ -2936,7 +2991,14 @@ static int sif6addr_rtnetlink(unsigned int iface, eui64_t our_eui64, eui64_t his
 
     /* error == 0 indicates success, negative value is errno code */
     if (nlresp.nlerr.error != 0) {
-        error("sif6addr_rtnetlink: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
+        /*
+         * Linux kernel versions prior 3.11 do not support setting IPv6 peer
+         * addresses and error response is expected. On older kernel versions
+         * do not show this error message. On error pppd tries to fallback to
+         * the old IOCTL method.
+         */
+        if (kernel_version >= KVERSION(3,11,0))
+            error("sif6addr_rtnetlink: %s (line %d)", strerror(-nlresp.nlerr.error), __LINE__);
         return 0;
     }
 
@@ -2952,6 +3014,7 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
     struct in6_ifreq ifr6;
     struct ifreq ifr;
     struct in6_rtmsg rt6;
+    int ret;
 
     if (sock6_fd < 0) {
 	errno = -sock6_fd;
@@ -2967,8 +3030,16 @@ int sif6addr (int unit, eui64_t our_eui64, eui64_t his_eui64)
 
     if (kernel_version >= KVERSION(2,1,16)) {
         /* Set both local address and remote peer address (with route for it) via rtnetlink */
-        return sif6addr_rtnetlink(ifr.ifr_ifindex, our_eui64, his_eui64);
+        ret = sif6addr_rtnetlink(ifr.ifr_ifindex, our_eui64, his_eui64);
     } else {
+        ret = 0;
+    }
+
+    /*
+     * Linux kernel versions prior 3.11 do not support setting IPv6 peer address
+     * via rtnetlink. So if sif6addr_rtnetlink() fails then try old IOCTL method.
+     */
+    if (!ret) {
         /* Local interface */
         memset(&ifr6, 0, sizeof(ifr6));
         IN6_LLADDR_FROM_EUI64(ifr6.ifr6_addr, our_eui64);
