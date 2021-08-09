@@ -117,7 +117,7 @@
 #endif
 
 /* interface vars */
-char ifname[MAXIFNAMELEN];	/* Interface name */
+char ifname[IFNAMSIZ];		/* Interface name */
 int ifunit;			/* Interface unit number */
 
 struct channel *the_channel;
