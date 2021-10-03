@@ -788,7 +788,7 @@ int
 lock(char *dev)
 {
     char lock_buffer[12];
-    int fd, pid, n;
+    int fd, pid, n, siz;
 
     char *p;
     char lockdev[MAXPATHLEN];
@@ -859,11 +859,16 @@ lock(char *dev)
 
     pid = getpid();
 #ifndef LOCK_BINARY
+    siz = 11;
     slprintf(lock_buffer, sizeof(lock_buffer), "%10d\n", pid);
-    write (fd, lock_buffer, 11);
+    n = write (fd, lock_buffer, siz);
 #else
-    write(fd, &pid, sizeof (pid));
+    siz = sizeof (pid);
+    n = write(fd, &pid, siz);
 #endif
+    if (n != siz) {
+	error("Could not write pid to lock file when locking");
+    }
     close(fd);
     return 0;
 }
@@ -880,7 +885,7 @@ lock(char *dev)
 int
 relock(int pid)
 {
-    int fd;
+    int fd, n, siz;
     char lock_buffer[12];
 
     if (lock_file[0] == 0)
@@ -893,11 +898,16 @@ relock(int pid)
     }
 
 #ifndef LOCK_BINARY
+    siz = 11;
     slprintf(lock_buffer, sizeof(lock_buffer), "%10d\n", pid);
-    write (fd, lock_buffer, 11);
+    n = write (fd, lock_buffer, siz);
 #else
-    write(fd, &pid, sizeof(pid));
+    siz = sizeof(pid);
+    n = write(fd, &pid, siz);
 #endif /* LOCK_BINARY */
+    if (n != siz) {
+	error("Could not write pid to lock file when locking");
+    }
     close(fd);
     return 0;
 }

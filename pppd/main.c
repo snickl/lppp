@@ -740,6 +740,7 @@ void
 detach(void)
 {
     int pid;
+    int ret;
     char numbuf[16];
     int pipefd[2];
 
@@ -761,7 +762,10 @@ detach(void)
 	exit(0);		/* parent dies */
     }
     setsid();
-    chdir("/");
+    ret = chdir("/");
+    if (ret != 0) {
+        fatal("Could not change directory to '/', %m");
+    }
     dup2(fd_devnull, 0);
     dup2(fd_devnull, 1);
     dup2(fd_devnull, 2);
@@ -1400,8 +1404,12 @@ hup(int sig)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
     notify(sigreceived, sig);
-    if (waiting)
+    if (waiting) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
 	write(sigpipe[1], &sig, sizeof(sig));
+#pragma GCC diagnostic pop
+    }
 }
 
 
@@ -1420,8 +1428,12 @@ term(int sig)
 	/* Send the signal to the [dis]connector process(es) also */
 	kill_my_pg(sig);
     notify(sigreceived, sig);
-    if (waiting)
+    if (waiting) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
 	write(sigpipe[1], &sig, sizeof(sig));
+#pragma GCC diagnostic pop
+    }
 }
 
 
@@ -1433,8 +1445,12 @@ static void
 chld(int sig)
 {
     got_sigchld = 1;
-    if (waiting)
+    if (waiting) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
 	write(sigpipe[1], &sig, sizeof(sig));
+#pragma GCC diagnostic pop
+    }
 }
 
 
@@ -1466,8 +1482,12 @@ static void
 open_ccp(int sig)
 {
     got_sigusr2 = 1;
-    if (waiting)
+    if (waiting) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
 	write(sigpipe[1], &sig, sizeof(sig));
+#pragma GCC diagnostic pop
+    }
 }
 
 
@@ -1629,6 +1649,7 @@ device_script(char *program, int in, int out, int dont_wait)
     int pid;
     int status = -1;
     int errfd;
+    int ret;
 
     if (log_to_fd >= 0)
 	errfd = log_to_fd;
@@ -1663,12 +1684,15 @@ device_script(char *program, int in, int out, int dont_wait)
     }
 
     /* here we are executing in the child */
-
-    setgid(getgid());
-    setuid(uid);
-    if (getuid() != uid) {
-	fprintf(stderr, "pppd: setuid failed\n");
-	exit(1);
+    ret = setgid(getgid());
+    if (ret != 0) {
+        perror("pppd: setgid failed\n");
+        exit(1);
+    }
+    ret = setuid(uid);
+    if (ret != 0 || getuid() != uid) {
+        perror("pppd: setuid failed\n");
+        exit(1);
     }
     update_system_environment();
     execl("/bin/sh", "sh", "-c", program, (char *)0);
@@ -1729,7 +1753,7 @@ update_script_environment(void)
 pid_t
 run_program(char *prog, char **args, int must_exist, void (*done)(void *), void *arg, int wait)
 {
-    int pid, status;
+    int pid, status, ret;
     struct stat sbuf;
 
     /*
@@ -1769,9 +1793,18 @@ run_program(char *prog, char **args, int must_exist, void (*done)(void *), void 
     /* Leave the current location */
     (void) setsid();	/* No controlling tty. */
     (void) umask (S_IRWXG|S_IRWXO);
-    (void) chdir ("/");	/* no current directory. */
-    setuid(0);		/* set real UID = root */
-    setgid(getegid());
+    ret = chdir ("/");	/* no current directory. */
+    if (ret != 0) {
+        fatal("Failed to change directory to '/', %m");
+    }
+    ret = setuid(0);		/* set real UID = root */
+    if (ret != 0) {
+        fatal("Failed to set uid, %m");
+    }
+    ret = setgid(getegid());
+    if (ret != 0) {
+        fatal("failed to set gid, %m");
+    }
 
 #ifdef BSD
     /* Force the priority back to zero if pppd is running higher. */
