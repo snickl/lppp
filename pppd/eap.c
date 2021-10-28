@@ -63,11 +63,13 @@
 #include "pathnames.h"
 #include "eap.h"
 #ifdef USE_EAPTLS
-#include "eap-tls.h"
 #include <openssl/md5.h>
 #else
 #include "md5.h"
 #endif /* USE_EAPTLS */
+#ifdef USE_PEAP
+#include "peap.h"
+#endif /* USE_PEAP */
 
 #ifdef USE_SRP
 #ifdef HAVE_TIME_H
@@ -2393,6 +2395,10 @@ eap_success(eap_state *esp, u_char *inp, int id, int len)
 		PRINTMSG(inp, len);
 	}
 
+#ifdef USE_PEAP
+	peap_finish(&esp->ea_peap);
+#endif
+
 	esp->es_client.ea_state = eapOpen;
 	auth_withpeer_success(esp->es_unit, PPP_EAP, 0);
 }
@@ -2427,6 +2433,11 @@ eap_failure(eap_state *esp, u_char *inp, int id, int len)
 	esp->es_client.ea_state = eapBadAuth;
 
 	error("EAP: peer reports authentication failure");
+
+#ifdef USE_PEAP
+	peap_finish(&esp->ea_peap);
+#endif
+
 	auth_withpeer_fail(esp->es_unit, PPP_EAP);
 }
 

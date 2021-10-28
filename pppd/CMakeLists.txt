@@ -60,7 +60,7 @@ endif()
 
 if (OPTION_LPPPD_PPPD_EAPTLS AND HAVE_LIBCRYPTO)
 	add_definitions(-DUSE_EAPTLS)
-	target_sources(pppd PUBLIC eap-tls.c)
+	target_sources(pppd PUBLIC eap-tls.c tls.c)
 	target_link_libraries(pppd -lssl -lcrypto)
 else()
 	target_sources(pppd PUBLIC md5.c)
