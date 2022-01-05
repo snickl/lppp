@@ -60,7 +60,7 @@ extern int new_style_driver;
 char *pppd_pppoe_service = NULL;
 static char *acName = NULL;
 static char *existingSession = NULL;
-static int printACNames = 0;
+int pppoe_verbose = 0;
 static char *pppoe_reqd_mac = NULL;
 unsigned char pppoe_reqd_mac_addr[6];
 static char *pppoe_host_uniq;
@@ -85,9 +85,9 @@ static option_t Options[] = {
       "Attach to existing session (sessid:macaddr)" },
     { "rp_pppoe_sess",    o_string, &existingSession,
       "Legacy alias for pppoe-sess", OPT_ALIAS },
-    { "pppoe-verbose", o_int, &printACNames,
+    { "pppoe-verbose", o_int, &pppoe_verbose,
       "Be verbose about discovered access concentrators" },
-    { "rp_pppoe_verbose", o_int, &printACNames,
+    { "rp_pppoe_verbose", o_int, &pppoe_verbose,
       "Legacy alias for pppoe-verbose", OPT_ALIAS },
     { "pppoe-mac", o_string, &pppoe_reqd_mac,
       "Only connect to specified MAC address" },
@@ -124,7 +124,6 @@ PPPOEInitDevice(void)
     conn->ifName = devnam;
     conn->discoverySocket = -1;
     conn->sessionSocket = -1;
-    conn->printACNames = printACNames;
     conn->discoveryTimeout = pppoe_padi_timeout;
     conn->discoveryAttempts = pppoe_padi_attempts;
     return 1;
@@ -158,8 +157,8 @@ PPPOEConnectDevice(void)
     }
 
     /* Restore configuration */
-    lcp_allowoptions[0].mru = conn->mtu;
-    lcp_wantoptions[0].mru = conn->mru;
+    lcp_allowoptions[0].mru = conn->mtu = conn->storedmtu;
+    lcp_wantoptions[0].mru = conn->mru = conn->storedmru;
 
     /* Update maximum MRU */
     s = socket(AF_INET, SOCK_DGRAM, 0);
@@ -176,9 +175,9 @@ PPPOEConnectDevice(void)
     close(s);
 
     if (lcp_allowoptions[0].mru > ifr.ifr_mtu - TOTAL_OVERHEAD)
-	lcp_allowoptions[0].mru = ifr.ifr_mtu - TOTAL_OVERHEAD;
+	lcp_allowoptions[0].mru = conn->mtu = ifr.ifr_mtu - TOTAL_OVERHEAD;
     if (lcp_wantoptions[0].mru > ifr.ifr_mtu - TOTAL_OVERHEAD)
-	lcp_wantoptions[0].mru = ifr.ifr_mtu - TOTAL_OVERHEAD;
+	lcp_wantoptions[0].mru = conn->mru = ifr.ifr_mtu - TOTAL_OVERHEAD;
 
     if (pppoe_host_uniq) {
 	if (!parseHostUniq(pppoe_host_uniq, &conn->hostUniq))
@@ -213,9 +212,20 @@ PPPOEConnectDevice(void)
 	    error("Failed to create PPPoE discovery socket: %m");
 	    goto errout;
 	}
-	discovery(conn);
+	discovery1(conn);
+	/* discovery1() may update conn->mtu and conn->mru */
+	lcp_allowoptions[0].mru = conn->mtu;
+	lcp_wantoptions[0].mru = conn->mru;
+	if (conn->discoveryState != STATE_RECEIVED_PADO) {
+	    error("Unable to complete PPPoE Discovery phase 1");
+	    goto errout;
+	}
+	discovery2(conn);
+	/* discovery2() may update conn->mtu and conn->mru */
+	lcp_allowoptions[0].mru = conn->mtu;
+	lcp_wantoptions[0].mru = conn->mru;
 	if (conn->discoveryState != STATE_SESSION) {
-	    error("Unable to complete PPPoE Discovery");
+	    error("Unable to complete PPPoE Discovery phase 2");
 	    goto errout;
 	}
     }
@@ -444,8 +454,8 @@ void pppoe_check_options(void)
 	lcp_wantoptions[0].mru = MAX_PPPOE_MTU;
 
     /* Save configuration */
-    conn->mtu = lcp_allowoptions[0].mru;
-    conn->mru = lcp_wantoptions[0].mru;
+    conn->storedmtu = lcp_allowoptions[0].mru;
+    conn->storedmru = lcp_wantoptions[0].mru;
 
     ccp_allowoptions[0].deflate = 0;
     ccp_wantoptions[0].deflate = 0;
