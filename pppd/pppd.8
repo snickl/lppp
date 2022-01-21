@@ -212,11 +212,14 @@ Set the local and/or remote 64-bit interface identifier. Either one may be
 omitted. The identifier must be specified in standard ASCII notation of
 IPv6 addresses (e.g. ::dead:beef). If the
 \fIipv6cp\-use\-ipaddr\fR
-option is given, the local identifier is the local IPv4 address (see above).
+option is given, the local identifier is the local IPv4 address and the
+remote identifier is the remote IPv4 address (see above).
+If the \fIipv6cp-use-remotenumber\fR option is given, the remote identifier
+is set to the value from \fIremotenumber\fR option.
 On systems which supports a unique persistent id, such as EUI\-48 derived
 from the Ethernet MAC address, \fIipv6cp\-use\-persistent\fR option can be
-used to replace the \fIipv6 <local>,<remote>\fR option. Otherwise the
-identifier is randomized.
+used to set local identifier.  Otherwise both local and remote identifiers
+are randomized.
 .TP
 .B active\-filter \fIfilter\-expression
 Specifies a packet filter to be applied to data packets to determine
@@ -530,6 +533,23 @@ With this option, pppd will accept the peer's idea of its (remote)
 IPv6 interface identifier, even if the remote IPv6 interface
 identifier was specified in an option.
 .TP
+.B ipv6cp\-noremote
+Allow pppd to operate without having an IPv6 link local address for the peer.
+This option is only available under Linux.  Normally, pppd will request the
+peer's IPv6 interface identifier (used for composing IPv6 link local address),
+and if the peer does not supply it, pppd will generate one for the peer.
+With this option, if the peer does not supply its IPv6 interface identifier,
+pppd will not ask the peer for it, and will not set the destination IPv6
+link local address of the ppp interface.  In this situation, the ppp interface
+can be used for routing by creating device routes, but the peer itself cannot
+be addressed directly for IPv6 traffic until the peer starts announcing ICMPv6
+Router Advertisement or ICMPv6 Neighbor Advertisement packets.  Note that IPv6
+router must announce ICMPv6 Router Advertisement packets.
+.TP
+.B ipv6cp\-nosendip
+Don't send our local IPv6 interface identifier to peer during IPv6 interface
+identifier negotiation.
+.TP
 .B ipv6cp\-max\-configure \fIn
 Set the maximum number of IPv6CP configure-request transmissions to
 \fIn\fR (default 10).
@@ -545,70 +565,6 @@ Set the maximum number of IPv6CP terminate-request transmissions to
 .B ipv6cp\-restart \fIn
 Set the IPv6CP restart interval (retransmission timeout) to \fIn\fR
 seconds (default 3).
-.TP
-.B ipx
-Enable the IPXCP and IPX protocols.  This option is presently only
-supported under Linux, and only if your kernel has been configured to
-include IPX support.
-.TP
-.B ipx\-network \fIn
-Set the IPX network number in the IPXCP configure request frame to
-\fIn\fR, a hexadecimal number (without a leading 0x).  There is no
-valid default.  If this option is not specified, the network number is
-obtained from the peer.  If the peer does not have the network number,
-the IPX protocol will not be started.
-.TP
-.B ipx\-node \fIn\fB:\fIm
-Set the IPX node numbers. The two node numbers are separated from each
-other with a colon character. The first number \fIn\fR is the local
-node number. The second number \fIm\fR is the peer's node number. Each
-node number is a hexadecimal number, at most 10 digits long. The node
-numbers on the ipx\-network must be unique. There is no valid
-default. If this option is not specified then the node numbers are
-obtained from the peer.
-.TP
-.B ipx\-router\-name \fI<string>
-Set the name of the router. This is a string and is sent to the peer
-as information data.
-.TP
-.B ipx\-routing \fIn
-Set the routing protocol to be received by this option. More than one
-instance of \fIipx\-routing\fR may be specified. The '\fInone\fR'
-option (0) may be specified as the only instance of ipx\-routing. The
-values may be \fI0\fR for \fINONE\fR, \fI2\fR for \fIRIP/SAP\fR, and
-\fI4\fR for \fINLSP\fR.
-.TP
-.B ipxcp\-accept\-local
-Accept the peer's NAK for the node number specified in the ipx\-node
-option. If a node number was specified, and non-zero, the default is
-to insist that the value be used. If you include this option then you
-will permit the peer to override the entry of the node number.
-.TP
-.B ipxcp\-accept\-network
-Accept the peer's NAK for the network number specified in the
-ipx\-network option. If a network number was specified, and non-zero, the
-default is to insist that the value be used. If you include this
-option then you will permit the peer to override the entry of the node
-number.
-.TP
-.B ipxcp\-accept\-remote
-Use the peer's network number specified in the configure request
-frame. If a node number was specified for the peer and this option was
-not specified, the peer will be forced to use the value which you have
-specified.
-.TP
-.B ipxcp\-max\-configure \fIn
-Set the maximum number of IPXCP configure request frames which the
-system will send to \fIn\fR. The default is 10.
-.TP
-.B ipxcp\-max\-failure \fIn
-Set the maximum number of IPXCP NAK frames which the local system will
-send before it rejects the options. The default value is 3.
-.TP
-.B ipxcp\-max\-terminate \fIn
-Set the maximum number of IPXCP terminate request frames before the
-local system considers that the peer is not listening to them. The
-default value is 3.
 .TP
 .B kdebug \fIn
 Enable debugging code in the kernel-level PPP driver.  The argument
@@ -867,11 +823,6 @@ which is to determine (if possible) the local IP address from the
 hostname.  With this option, the peer will have to supply the local IP
 address during IPCP negotiation (unless it specified explicitly on the
 command line or in an options file).
-.TP
-.B noipx
-Disable the IPXCP and IPX protocols.  This option should only be
-required if the peer is buggy and gets confused by requests from pppd
-for IPXCP negotiation.
 .TP
 .B noktune
 Opposite of the \fIktune\fR option; disables pppd from changing system
@@ -1910,34 +1861,6 @@ remote\-link\-local\-address ipparam\fR
 Similar to /etc/ppp/ip\-down, but it is executed when IPv6 packets can no
 longer be transmitted on the link. It is executed with the same parameters
 as the ipv6\-up script.
-.TP
-.B /etc/ppp/ipx\-up
-A program or script which is executed when the link is available for
-sending and receiving IPX packets (that is, IPXCP has come up).  It is
-executed with the parameters
-.IP
-\fIinterface\-name tty\-device speed network\-number local\-IPX\-node\-address
-remote\-IPX\-node\-address local\-IPX\-routing\-protocol remote\-IPX\-routing\-protocol
-local\-IPX\-router\-name remote\-IPX\-router\-name ipparam pppd\-pid\fR
-.IP
-The local\-IPX\-routing\-protocol and remote\-IPX\-routing\-protocol field
-may be one of the following:
-.IP
-NONE      to indicate that there is no routing protocol
-.br
-RIP       to indicate that RIP/SAP should be used
-.br
-NLSP      to indicate that Novell NLSP should be used
-.br
-RIP NLSP  to indicate that both RIP/SAP and NLSP should be used
-.TP
-.B /etc/ppp/ipx\-down
-A program or script which is executed when the link is no longer
-available for sending and receiving IPX packets.  This script can be
-used for undoing the effects of the /etc/ppp/ipx\-up script.  It is
-invoked in the same manner and with the same parameters as the ipx\-up
-script.
-.SH FILES
 .TP
 .B /var/run/ppp\fIn\fB.pid \fR(BSD or Linux), \fB/etc/ppp/ppp\fIn\fB.pid \fR(others)
 Process-ID for pppd process on ppp interface unit \fIn\fR.

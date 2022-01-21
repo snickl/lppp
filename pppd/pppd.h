@@ -53,6 +53,7 @@
 #include <stdlib.h>		/* for encrypt */
 #include <unistd.h>		/* for setkey */
 #include <stdarg.h>
+#include <stdint.h>
 #include <limits.h>		/* for NGROUPS_MAX */
 #include <sys/param.h>		/* for MAXPATHLEN and BSD4_4, if defined */
 #include <sys/types.h>		/* for u_int32_t, if defined */
@@ -172,8 +173,8 @@ struct permitted_ip {
  * pppd needs.
  */
 struct pppd_stats {
-    unsigned int	bytes_in;
-    unsigned int	bytes_out;
+    uint64_t		bytes_in;
+    uint64_t		bytes_out;
     unsigned int	pkts_in;
     unsigned int	pkts_out;
 };
@@ -939,12 +940,6 @@ extern void (*snoop_send_hook)(unsigned char *p, int len);
 #define CHAPDEBUG(x)	if (debug) dbglog x
 #else
 #define CHAPDEBUG(x)
-#endif
-
-#ifdef DEBUGIPXCP
-#define IPXCPDEBUG(x)	if (debug) dbglog x
-#else
-#define IPXCPDEBUG(x)
 #endif
 
 #ifndef SIGTYPE
