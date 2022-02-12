@@ -1970,6 +1970,29 @@ eap_request(eap_state *esp, u_char *inp, int id, int len)
 		break;
 #endif /* USE_SRP */
 
+#ifdef USE_PEAP
+	case EAPT_PEAP:
+
+		/* Initialize the PEAP context (if not already initialized) */
+		if (!esp->ea_peap) {
+			rhostname[0] = '\0';
+			if (explicit_remote || (remote_name[0] != '\0')) {
+				strlcpy(rhostname, remote_name, sizeof (rhostname));
+			}
+			if (peap_init(&esp->ea_peap, rhostname)) {
+				eap_send_nak(esp, id, EAPT_TLS);
+				break;
+			}
+		}
+
+		/* Process the PEAP packet */
+		if (peap_process(esp, id, inp, len)) {
+			eap_send_nak(esp, id, EAPT_TLS);
+		}
+
+		break;
+#endif /* USE_PEAP */
+
 	default:
 		info("EAP: unknown authentication type %d; Naking", typenum);
 		eap_send_nak(esp, id, EAPT_SRP);
